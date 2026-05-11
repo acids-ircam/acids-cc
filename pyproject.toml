@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cached-conv"
+version = "3.0"
+description = "Cached convolution layers for real-time streaming inference with PyTorch"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ACIDS Team", email = "axelchemla@yahoo.fr" }]
+keywords = ["deep learning", "pytorch", "convolution", "streaming", "real-time"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["torch"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov"]
+
+[tool.setuptools.packages.find]
+include = ["cached_conv*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
