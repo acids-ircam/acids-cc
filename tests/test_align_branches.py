@@ -10,11 +10,11 @@ torch.set_grad_enabled(False)
 
 def test_residual_1d():
     cc.use_cached_conv(False)
-    conv = cc.Conv1d(1, 1, 5, padding=cc.get_padding(5))
+    conv = cc.Conv1d(1, 1, 5, padding="same")
     model = cc.AlignBranches1d(conv, nn.Identity(), delays=[conv.cumulative_delay, 0])
 
     cc.use_cached_conv(True)
-    cconv = cc.Conv1d(1, 1, 5, padding=cc.get_padding(5))
+    cconv = cc.Conv1d(1, 1, 5, padding="same")
     cmodel = cc.AlignBranches1d(cconv, nn.Identity(), delays=[cconv.cumulative_delay, 0])
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
@@ -29,13 +29,13 @@ def test_residual_1d():
 
 def test_parallel_1d():
     cc.use_cached_conv(False)
-    b1 = cc.Conv1d(1, 1, 5, padding=cc.get_padding(5))
-    b2 = cc.Conv1d(1, 1, 3, padding=cc.get_padding(3))
+    b1 = cc.Conv1d(1, 1, 5, padding="same")
+    b2 = cc.Conv1d(1, 1, 3, padding="same")
     model = cc.AlignBranches1d(b1, b2)
 
     cc.use_cached_conv(True)
-    cb1 = cc.Conv1d(1, 1, 5, padding=cc.get_padding(5))
-    cb2 = cc.Conv1d(1, 1, 3, padding=cc.get_padding(3))
+    cb1 = cc.Conv1d(1, 1, 5, padding="same")
+    cb2 = cc.Conv1d(1, 1, 3, padding="same")
     cmodel = cc.AlignBranches1d(cb1, cb2)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
@@ -50,13 +50,13 @@ def test_parallel_1d():
 
 def test_parallel_stride_1d():
     cc.use_cached_conv(False)
-    b1 = cc.Conv1d(1, 1, 5, stride=2, padding=cc.get_padding(5, 2))
-    b2 = cc.Conv1d(1, 1, 3, stride=2, padding=cc.get_padding(3, 2))
+    b1 = cc.Conv1d(1, 1, 5, stride=2, padding="same")
+    b2 = cc.Conv1d(1, 1, 3, stride=2, padding="same")
     model = cc.AlignBranches1d(b1, b2, stride=.5)
 
     cc.use_cached_conv(True)
-    cb1 = cc.Conv1d(1, 1, 5, stride=2, padding=cc.get_padding(5, 2))
-    cb2 = cc.Conv1d(1, 1, 3, stride=2, padding=cc.get_padding(3, 2))
+    cb1 = cc.Conv1d(1, 1, 5, stride=2, padding="same")
+    cb2 = cc.Conv1d(1, 1, 3, stride=2, padding="same")
     cmodel = cc.AlignBranches1d(cb1, cb2, stride=.5)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
@@ -94,11 +94,11 @@ def test_parallel_transpose_1d():
 
 def test_residual_2d():
     cc.use_cached_conv(False)
-    conv = cc.Conv2d(1, 1, 3, padding_time=cc.get_padding(3), padding_vert="same")
+    conv = cc.Conv2d(1, 1, 3, padding="same")
     model = cc.AlignBranches2d(conv, nn.Identity(), delays=[conv.cumulative_delay, 0])
 
     cc.use_cached_conv(True)
-    cconv = cc.Conv2d(1, 1, 3, padding_time=cc.get_padding(3), padding_vert="same")
+    cconv = cc.Conv2d(1, 1, 3, padding="same")
     cmodel = cc.AlignBranches2d(cconv, nn.Identity(), delays=[cconv.cumulative_delay, 0])
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
@@ -113,13 +113,13 @@ def test_residual_2d():
 
 def test_parallel_2d():
     cc.use_cached_conv(False)
-    b1 = cc.Conv2d(1, 1, 5, padding_time=cc.get_padding(5), padding_vert="same")
-    b2 = cc.Conv2d(1, 1, 3, padding_time=cc.get_padding(3), padding_vert="same")
+    b1 = cc.Conv2d(1, 1, 5, padding="same")
+    b2 = cc.Conv2d(1, 1, 3, padding="same")
     model = cc.AlignBranches2d(b1, b2)
 
     cc.use_cached_conv(True)
-    cb1 = cc.Conv2d(1, 1, 5, padding_time=cc.get_padding(5), padding_vert="same")
-    cb2 = cc.Conv2d(1, 1, 3, padding_time=cc.get_padding(3), padding_vert="same")
+    cb1 = cc.Conv2d(1, 1, 5, padding="same")
+    cb2 = cc.Conv2d(1, 1, 3, padding="same")
     cmodel = cc.AlignBranches2d(cb1, cb2)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
@@ -134,13 +134,13 @@ def test_parallel_2d():
 
 def test_parallel_stride_2d():
     cc.use_cached_conv(False)
-    b1 = cc.Conv2d(1, 1, 5, stride=2, padding_time=cc.get_padding(5, 2), padding_vert="same")
-    b2 = cc.Conv2d(1, 1, 3, stride=2, padding_time=cc.get_padding(3, 2), padding_vert="same")
+    b1 = cc.Conv2d(1, 1, 5, stride=2, padding="same")
+    b2 = cc.Conv2d(1, 1, 3, stride=2, padding="same")
     model = cc.AlignBranches2d(b1, b2, stride=.5)
 
     cc.use_cached_conv(True)
-    cb1 = cc.Conv2d(1, 1, 5, stride=2, padding_time=cc.get_padding(5, 2), padding_vert="same")
-    cb2 = cc.Conv2d(1, 1, 3, stride=2, padding_time=cc.get_padding(3, 2), padding_vert="same")
+    cb1 = cc.Conv2d(1, 1, 5, stride=2, padding="same")
+    cb2 = cc.Conv2d(1, 1, 3, stride=2, padding="same")
     cmodel = cc.AlignBranches2d(cb1, cb2, stride=.5)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):

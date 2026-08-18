@@ -1,42 +1,10 @@
 import torch
 import torch.nn as nn
 
+from .utils import (get_padding, resolve_padding, axis_value, peek_arg,
+                    take_arg)
+
 MAX_BATCH_SIZE = 64
-
-
-def get_padding(kernel_size, stride=1, dilation=1, mode="centered"):
-    """
-    Computes 'same' padding given a kernel size, stride an dilation.
-
-    Parameters
-    ----------
-
-    kernel_size: int
-        kernel_size of the convolution
-
-    stride: int
-        stride of the convolution
-
-    dilation: int
-        dilation of the convolution
-
-    mode: str
-        either "centered", "causal" or "anticausal"
-    """
-    if kernel_size == 1: return (0, 0)
-    p = (kernel_size - 1) * dilation + 1
-    if mode == "centered":
-        p_right = p // 2
-        p_left = (p - 1) // 2
-    elif mode == "causal":
-        p_right = 0
-        p_left = p // 2 + (p - 1) // 2
-    elif mode == "anticausal":
-        p_right = p // 2 + (p - 1) // 2
-        p_left = 0
-    else:
-        raise Exception(f"Padding mode {mode} is not valid")
-    return (p_left, p_right)
 
 
 class CachedSequential(nn.Sequential):
@@ -108,20 +76,19 @@ class CachedConv1d(nn.Conv1d):
     """
 
     def __init__(self, *args, **kwargs):
-        padding = kwargs.get("padding", 0)
+        args = list(args)
         cumulative_delay = kwargs.pop("cumulative_delay", 0)
         max_batch_size = kwargs.pop("max_batch_size", MAX_BATCH_SIZE)
 
-        kwargs["padding"] = 0
+        padding = take_arg(args, kwargs, "padding", 0)
+        kernel_size = axis_value(peek_arg(args, kwargs, "kernel_size"), 0)
+        dilation = axis_value(peek_arg(args, kwargs, "dilation", 1), 0)
+        padding = resolve_padding(padding, kernel_size, dilation)
 
         super().__init__(*args, **kwargs)
 
-        if isinstance(padding, int):
-            r_pad = padding
-            padding = 2 * padding
-        elif isinstance(padding, list) or isinstance(padding, tuple):
-            r_pad = padding[1]
-            padding = padding[0] + padding[1]
+        r_pad = padding[1]
+        padding = padding[0] + padding[1]
 
         s = self.stride[0]
         cd = cumulative_delay
@@ -214,10 +181,14 @@ class ConvTranspose1d(nn.ConvTranspose1d):
 class Conv1d(nn.Conv1d):
 
     def __init__(self, *args, **kwargs):
-        self._pad = kwargs.get("padding", (0, 0))
+        args = list(args)
         kwargs.pop("cumulative_delay", 0)
         kwargs.pop("max_batch_size", None)
-        kwargs["padding"] = 0
+
+        padding = take_arg(args, kwargs, "padding", 0)
+        kernel_size = axis_value(peek_arg(args, kwargs, "kernel_size"), 0)
+        dilation = axis_value(peek_arg(args, kwargs, "dilation", 1), 0)
+        self._pad = list(resolve_padding(padding, kernel_size, dilation))
 
         super().__init__(*args, **kwargs)
         self.cumulative_delay = 0

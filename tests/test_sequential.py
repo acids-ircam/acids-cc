@@ -34,7 +34,7 @@ def build_model_1d(kernels, strides):
             cc.Conv1d(
                 CHANNELS, CHANNELS, k,
                 stride=s,
-                padding=cc.get_padding(k, s),
+                padding="same",
                 cumulative_delay=cum_delay,
             ))
         cum_delay = layers[-1].cumulative_delay
@@ -49,7 +49,7 @@ def build_model_2d(kernels, strides):
             cc.Conv2d(
                 CHANNELS, CHANNELS, k,
                 stride=(1, s),
-                padding_time=cc.get_padding(k, s),
+                padding_time="same",
                 padding_vert="same",
                 cumulative_delay=cum_delay,
             ))

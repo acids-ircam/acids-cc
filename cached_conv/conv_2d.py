@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from . import is_cached
+from .utils import (CAUSAL_CONV2D_ARGS, resolve_padding, axis_value, peek_arg)
 
 MAX_BATCH_SIZE = 8
 
@@ -66,8 +67,9 @@ class CausalConv2d(nn.Conv2d):
                  stride=1,
                  dilation=1,
                  bias=True,
-                 padding_time=(0, 0),
-                 padding_vert=(0, 0),
+                 padding_time=None,
+                 padding_vert=None,
+                 padding=None,
                  **kwargs):
 
         if isinstance(kernel_size, int):
@@ -77,21 +79,16 @@ class CausalConv2d(nn.Conv2d):
         if isinstance(dilation, int):
             dilation = (dilation, dilation)
 
-        if (isinstance(padding_time, list) or isinstance(padding_time, tuple)):
-            padding_left, padding_right = padding_time
-        else:
-            padding_left = padding_time
-            padding_right = padding_time
+        # "padding" is a shorthand setting both the time and vertical axis
+        if padding is not None:
+            padding_time = padding if padding_time is None else padding_time
+            padding_vert = padding if padding_vert is None else padding_vert
 
-        if (isinstance(padding_vert, list) or isinstance(padding_vert, tuple)):
-            padding_vert = padding_vert
-        elif isinstance(padding_vert, str) and padding_vert == "same":
-            padding_vert = (kernel_size[0] - 1) // 2
-            padding_vert = (padding_vert, padding_vert)
-        elif isinstance(padding_vert, str) and padding_vert == "none":
-            padding_vert = (0, 0)
-        else:
-            padding_vert = (padding_vert, padding_vert)
+        padding_left, padding_right = resolve_padding(padding_time,
+                                                      kernel_size[1],
+                                                      dilation[1])
+        padding_vert = resolve_padding(padding_vert, kernel_size[0],
+                                       dilation[0])
 
         self.padding_left = padding_left
         self.padding_right = padding_right
@@ -123,34 +120,36 @@ class CachedConv2d(nn.Module):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
+        args = list(args)
         max_batch_size = kwargs.pop("max_batch_size", MAX_BATCH_SIZE)
         normalization_mode = kwargs.pop("normalization", None)
+        cumulative_delay = kwargs.pop("cumulative_delay", 0)
+
+        padding = kwargs.pop("padding", None)
+        padding_time = kwargs.pop("padding_time", None)
+        padding_vert = kwargs.pop("padding_vert", None)
+        if padding is not None:
+            padding_time = padding if padding_time is None else padding_time
+            padding_vert = padding if padding_vert is None else padding_vert
+
+        kernel_size = peek_arg(args, kwargs, "kernel_size",
+                               names=CAUSAL_CONV2D_ARGS)
+        dilation = peek_arg(args, kwargs, "dilation", 1,
+                            names=CAUSAL_CONV2D_ARGS)
+        padding_time = resolve_padding(padding_time,
+                                       axis_value(kernel_size, -1),
+                                       axis_value(dilation, -1))
+
+        kwargs["padding_vert"] = padding_vert
 
         if is_cached():
-            if "padding" in kwargs:
-                padding = kwargs.pop("padding")
-                padding_time = padding
-                padding_vert = padding
-            else:
-                padding_time = kwargs.pop("padding_time", 0)
-                padding_vert = kwargs.pop("padding_vert", 0)
-
-            cumulative_delay = kwargs.pop("cumulative_delay", 0)
-
-            if isinstance(padding_time, int):
-                r_pad = padding_time
-                padding = 2 * r_pad
-            elif isinstance(padding_time, (list, tuple)):
-                r_pad = padding_time[1]
-                padding = padding_time[1] + padding_time[0]
-            else:
-                raise NotImplementedError(f"Unsupported padding type: {type(padding_time)}")
-
-            kwargs["padding_vert"] = padding_vert
             kwargs["padding_time"] = 0
 
             causal_conv = CausalConv2d(*args, **kwargs)
             self.causal_conv = normalization(causal_conv) if normalization_mode else causal_conv
+
+            r_pad = padding_time[1]
+            padding = padding_time[0] + padding_time[1]
 
             s = self.causal_conv.stride[1]
             cd = cumulative_delay
@@ -162,16 +161,6 @@ class CachedConv2d(nn.Module):
             self.cache = CachedPadding2d(padding, max_batch_size=max_batch_size)
             self.downsampling_delay = CachedPadding2d(stride_delay, crop=True, max_batch_size=max_batch_size)
         else:
-            kwargs.pop("cumulative_delay", 0)
-            if "padding" in kwargs:
-                padding = kwargs.pop("padding")
-                padding_time = padding
-                padding_vert = padding
-            else:
-                padding_time = kwargs.pop("padding_time", 0)
-                padding_vert = kwargs.pop("padding_vert", 0)
-
-            kwargs["padding_vert"] = padding_vert
             kwargs["padding_time"] = padding_time
 
             causal_conv = CausalConv2d(*args, **kwargs)

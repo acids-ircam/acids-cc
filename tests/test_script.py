@@ -12,7 +12,7 @@ model_list_1d = [
         "in_channels": 16,
         "out_channels": 16,
         "kernel_size": 3,
-        "padding": cc.get_padding(3),
+        "padding": "same",
     }, (1, 16, 2**14)),
     (cc.CachedConvTranspose1d, {
         "in_channels": 16,

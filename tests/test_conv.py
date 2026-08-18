@@ -9,64 +9,64 @@ hparams_list_1d = [{
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 3,
-    "padding": cc.get_padding(3)
+    "padding": "same"
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 5,
-    "padding": cc.get_padding(5)
+    "padding": "same"
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 3,
     "stride": 2,
-    "padding": cc.get_padding(3, 2)
+    "padding": "same"
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 7,
     "stride": 2,
-    "padding": cc.get_padding(7, 2)
+    "padding": "same"
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 7,
     "stride": 4,
-    "padding": cc.get_padding(7, 4)
+    "padding": "same"
 }]
 
 hparams_list_2d = [{
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 3,
-    "padding_time": cc.get_padding(3),
+    "padding_time": "same",
     "padding_vert": "same",
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 5,
-    "padding_time": cc.get_padding(5),
+    "padding_time": "same",
     "padding_vert": "same",
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 3,
     "stride": 2,
-    "padding_time": cc.get_padding(3, 2),
+    "padding_time": "same",
     "padding_vert": "same",
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 7,
     "stride": 2,
-    "padding_time": cc.get_padding(7, 2),
+    "padding_time": "same",
     "padding_vert": "same",
 }, {
     "in_channels": 16,
     "out_channels": 16,
     "kernel_size": 7,
     "stride": 4,
-    "padding_time": cc.get_padding(7, 4),
+    "padding_time": "same",
     "padding_vert": "same",
 }]
 
