@@ -44,23 +44,32 @@ def test_implicit_padding_1d(cached, params, mode):
 
 
 @pytest.mark.parametrize("params", conv_params)
-@pytest.mark.parametrize("mode", modes)
+@pytest.mark.parametrize("mode", ["same", "centered", "causal", "anticausal"])
 def test_implicit_padding_2d(cached, params, mode):
     k, s, d = params
-    explicit_mode = "centered" if mode == "same" else mode
-
-    implicit = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d),
-                         padding_time=mode, padding_vert="same")
-    explicit = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d),
-                         padding_time=cc.get_padding(k, s, d, explicit_mode),
-                         padding_vert="same")
-
-    for p1, p2 in zip(implicit.parameters(), explicit.parameters()):
-        p2.data.copy_(p1.data)
+    model = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d),
+                      padding=mode)
+    reference = nn.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d))
+    reference.load_state_dict(model.state_dict())
 
     x = torch.randn(1, CHANNELS, HEIGHT, 2**12)
-    assert implicit.cumulative_delay == explicit.cumulative_delay
-    assert torch.allclose(implicit(x), explicit(x))
+    left, right = cc.get_padding(k, dilation=d,
+                                 mode="centered" if mode == "same" else mode)
+    top, bottom = cc.get_padding(k)
+    if cached:
+        delay = (s - right % s) % s
+        assert model.cumulative_delay == (right + delay) // s
+        if delay:
+            x_reference = nn.functional.pad(x, (delay, 0))[..., :-delay]
+        else:
+            x_reference = x
+        padding = (left + right, 0, top, bottom)
+    else:
+        assert model.cumulative_delay == 0
+        x_reference = x
+        padding = (left, right, top, bottom)
+    y = reference(nn.functional.pad(x_reference, padding))
+    assert torch.allclose(model(x), y, 1e-4, 1e-4)
 
 
 @pytest.mark.parametrize("params", conv_params)
@@ -73,22 +82,21 @@ def test_streaming_implicit_padding_1d(params):
 
 
 @pytest.mark.parametrize("params", conv_params)
-def test_streaming_implicit_padding_2d(params):
+@pytest.mark.parametrize("mode", ["same", "centered", "causal", "anticausal"])
+def test_streaming_implicit_padding_2d(params, mode):
     k, s, d = params
     model_constructor = lambda: cc.Conv2d(CHANNELS,
                                           CHANNELS,
                                           k,
                                           stride=(1, s),
                                           dilation=(1, d),
-                                          padding_time="same",
-                                          padding_vert="same")
+                                          padding=mode)
     input_tensor = torch.randn(1, CHANNELS, HEIGHT, 2**14)
     assert cc.test_equal(model_constructor, input_tensor)
 
 
-def test_padding_shorthand_2d(cached):
-    """padding= applies to both axes, and is not silently ignored"""
-    model = cc.Conv2d(CHANNELS, CHANNELS, 3, padding="same")
+def test_default_padding_2d(cached):
+    model = cc.Conv2d(CHANNELS, CHANNELS, 3)
     x = torch.randn(1, CHANNELS, HEIGHT, 2**10)
     assert model(x).shape == x.shape
 
@@ -138,3 +146,42 @@ def test_streaming_sequential_implicit():
         return cc.CachedSequential(*layers)
 
     assert cc.test_equal(build_model, torch.randn(1, CHANNELS, 2**14))
+
+
+def test_unknown_padding_mode_2d(cached):
+    with pytest.raises(ValueError):
+        cc.Conv2d(CHANNELS, CHANNELS, 3, padding="acausal")
+
+
+@pytest.mark.parametrize("params", conv_params)
+def test_causality_2d(cached, params):
+    k, s, d = params
+    model = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s),
+                      dilation=(1, d), padding="causal")
+    other = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s),
+                      dilation=(1, d), padding="causal")
+    other.load_state_dict(model.state_dict())
+    x = torch.randn(1, CHANNELS, HEIGHT, 2**10)
+    changed = x.clone()
+    cutoff = 513
+    changed[..., cutoff:] += 10
+
+    if cached:
+        y = cc.chunk_process(model, x, 4)
+        changed_y = cc.chunk_process(other, changed, 4)
+    else:
+        y = model(x)
+        changed_y = other(changed)
+    prefix = (cutoff + s - 1) // s
+    assert model.cumulative_delay == 0
+    assert torch.allclose(y[..., :prefix], changed_y[..., :prefix])
+    assert not torch.allclose(y[..., prefix:], changed_y[..., prefix:])
+
+
+@pytest.mark.parametrize("padding", ["same", "centered", "causal", "anticausal"])
+def test_padding_positional_2d(cached, padding):
+    model = cc.Conv2d(CHANNELS, CHANNELS, 5, 1, padding)
+    reference = cc.Conv2d(CHANNELS, CHANNELS, 5, padding=padding)
+    reference.load_state_dict(model.state_dict())
+    x = torch.randn(1, CHANNELS, HEIGHT, 2**10)
+    assert torch.allclose(model(x), reference(x))

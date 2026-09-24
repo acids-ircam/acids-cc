@@ -23,9 +23,16 @@ model_list_1d = [
     }, (1, 16, 2**14)),
 ]
 
-# CachedConvTranspose2d is scriptable after cache initialisation.
-# CachedConv2d is not directly scriptable due to Union[CachedPadding2d, Identity] on self.cache.
+# Cached 2D convolutions are scriptable after cache initialisation.
 model_list_2d = [
+    (cc.CachedConv2d, {
+        "in_channels": 16,
+        "out_channels": 16,
+        "kernel_size": 3,
+        "padding": padding,
+    }, (1, 16, 8, 2**14))
+    for padding in ["same", "causal"]
+] + [
     (cc.CachedConvTranspose2d, {
         "in_channels": 16,
         "out_channels": 16,

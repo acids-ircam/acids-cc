@@ -1,3 +1,4 @@
+import pytest
 import torch
 import torch.nn as nn
 
@@ -92,62 +93,71 @@ def test_parallel_transpose_1d():
 
 # ----- 2D -----
 
-def test_residual_2d():
+@pytest.mark.parametrize("padding", ["same", "causal"])
+def test_residual_2d(padding):
     cc.use_cached_conv(False)
-    conv = cc.Conv2d(1, 1, 3, padding="same")
+    conv = cc.Conv2d(1, 1, 3, padding=padding)
     model = cc.AlignBranches2d(conv, nn.Identity(), delays=[conv.cumulative_delay, 0])
 
     cc.use_cached_conv(True)
-    cconv = cc.Conv2d(1, 1, 3, padding="same")
+    cconv = cc.Conv2d(1, 1, 3, padding=padding)
     cmodel = cc.AlignBranches2d(cconv, nn.Identity(), delays=[cconv.cumulative_delay, 0])
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
         p2.data.copy_(p1.data)
 
     x = torch.randn(1, 1, 8, 2**14)
-    y = sum(model(x))[..., :-cmodel.cumulative_delay]
+    y = sum(model(x))
+    if cmodel.cumulative_delay:
+        y = y[..., :-cmodel.cumulative_delay]
     cy = cc.chunk_process(lambda x: sum(cmodel(x)), x, 4)[..., cmodel.cumulative_delay:]
 
     assert torch.allclose(y, cy, 1e-3, 1e-3)
 
 
-def test_parallel_2d():
+@pytest.mark.parametrize("padding", ["same", "causal"])
+def test_parallel_2d(padding):
     cc.use_cached_conv(False)
-    b1 = cc.Conv2d(1, 1, 5, padding="same")
-    b2 = cc.Conv2d(1, 1, 3, padding="same")
+    b1 = cc.Conv2d(1, 1, 5, padding=padding)
+    b2 = cc.Conv2d(1, 1, 3, padding=padding)
     model = cc.AlignBranches2d(b1, b2)
 
     cc.use_cached_conv(True)
-    cb1 = cc.Conv2d(1, 1, 5, padding="same")
-    cb2 = cc.Conv2d(1, 1, 3, padding="same")
+    cb1 = cc.Conv2d(1, 1, 5, padding=padding)
+    cb2 = cc.Conv2d(1, 1, 3, padding=padding)
     cmodel = cc.AlignBranches2d(cb1, cb2)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
         p2.data.copy_(p1.data)
 
     x = torch.randn(1, 1, 8, 2**14)
-    y = sum(model(x))[..., :-cmodel.cumulative_delay]
+    y = sum(model(x))
+    if cmodel.cumulative_delay:
+        y = y[..., :-cmodel.cumulative_delay]
     cy = cc.chunk_process(lambda x: sum(cmodel(x)), x, 4)[..., cmodel.cumulative_delay:]
 
     assert torch.allclose(y, cy, 1e-3, 1e-3)
 
 
-def test_parallel_stride_2d():
+@pytest.mark.parametrize("padding", ["same", "causal"])
+def test_parallel_stride_2d(padding):
     cc.use_cached_conv(False)
-    b1 = cc.Conv2d(1, 1, 5, stride=2, padding="same")
-    b2 = cc.Conv2d(1, 1, 3, stride=2, padding="same")
+    b1 = cc.Conv2d(1, 1, 5, stride=2, padding=padding)
+    b2 = cc.Conv2d(1, 1, 3, stride=2, padding=padding)
     model = cc.AlignBranches2d(b1, b2, stride=.5)
 
     cc.use_cached_conv(True)
-    cb1 = cc.Conv2d(1, 1, 5, stride=2, padding="same")
-    cb2 = cc.Conv2d(1, 1, 3, stride=2, padding="same")
+    cb1 = cc.Conv2d(1, 1, 5, stride=2, padding=padding)
+    cb2 = cc.Conv2d(1, 1, 3, stride=2, padding=padding)
     cmodel = cc.AlignBranches2d(cb1, cb2, stride=.5)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
         p2.data.copy_(p1.data)
 
     x = torch.randn(1, 1, 8, 2**14)
-    y = sum(model(x))[..., :-cmodel.cumulative_delay]
+    y = sum(model(x))
+    if cmodel.cumulative_delay:
+        y = y[..., :-cmodel.cumulative_delay]
     cy = cc.chunk_process(lambda x: sum(cmodel(x)), x, 4)[..., cmodel.cumulative_delay:]
 
     assert torch.allclose(y, cy, 1e-3, 1e-3)
@@ -168,7 +178,9 @@ def test_parallel_transpose_2d():
         p2.data.copy_(p1.data)
 
     x = torch.randn(1, 1, 8, 2**14)
-    y = sum(model(x))[..., :-cmodel.cumulative_delay]
+    y = sum(model(x))
+    if cmodel.cumulative_delay:
+        y = y[..., :-cmodel.cumulative_delay]
     cy = cc.chunk_process(lambda x: sum(cmodel(x)), x, 4)[..., cmodel.cumulative_delay:]
 
     assert torch.allclose(y, cy, 1e-3, 1e-3)

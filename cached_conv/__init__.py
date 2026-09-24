@@ -15,12 +15,12 @@ def is_cached():
 
 from .utils import Branches
 from .conv_1d import (get_padding, CachedSequential, Sequential,
-                      CachedPadding1d, CachedConv1d, CachedConvTranspose1d)
+                      CachedPadding, CachedConv1d, CachedConvTranspose1d,
+                      CachedGroupNorm, CachedGroupNorm1d)
 from .conv_1d import Conv1d as _Conv1d
 from .conv_1d import ConvTranspose1d as _ConvTranspose1d
 from .conv_1d import AlignBranches1d as _AlignBranches1d
-from .conv_2d import (CausalConv2d, CachedPadding2d,
-                      CachedConv2d, CachedConvTranspose2d)
+from .conv_2d import CachedConv2d, CachedConvTranspose2d, CachedGroupNorm2d
 from .conv_2d import Conv2d as _Conv2d
 from .conv_2d import ConvTranspose2d as _ConvTranspose2d
 from .conv_2d import AlignBranches2d as _AlignBranches2d

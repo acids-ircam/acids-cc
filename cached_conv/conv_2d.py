@@ -2,178 +2,58 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from . import is_cached
-from .utils import (CAUSAL_CONV2D_ARGS, resolve_padding, axis_value, peek_arg)
+from .utils import get_padding
+
+from .conv_1d import CachedPadding, CachedGroupNorm
+
+CachedGroupNorm2d = CachedGroupNorm
 
 MAX_BATCH_SIZE = 8
 
-
-def __prepare_scriptable__(self):
-    for hook in self._forward_pre_hooks.values():
-        if hook.__module__ == "torch.nn.utils.weight_norm" and hook.__class__.__name__ == "WeightNorm":
-            torch.nn.utils.remove_weight_norm(self)
-    return self
-
-
-def normalization(module: nn.Module, mode: str = 'weight_norm'):
-    if mode == 'identity':
-        return module
-    elif mode == 'weight_norm':
-        layer = torch.nn.utils.weight_norm(module)
-        layer.__prepare_scriptable__ = __prepare_scriptable__.__get__(layer)
-        return layer
-    else:
-        raise Exception(f'Normalization mode {mode} not supported')
+def _resolve_2d_padding(layer, padding):
+    mode = "centered" if padding == "same" else padding
+    if mode not in ("centered", "causal", "anticausal"):
+        raise ValueError("padding must be 'same', 'centered', 'causal', or 'anticausal'")
+    time = get_padding(layer.kernel_size[1], dilation=layer.dilation[1],
+                       mode=mode)
+    vertical = get_padding(layer.kernel_size[0], dilation=layer.dilation[0],
+                           mode="centered")
+    return list(time + vertical)
 
 
-class CachedPadding2d(nn.Module):
+class CachedConv2d(nn.Conv2d):
+    """Conv2d with cached temporal padding and centered vertical padding.
 
-    def __init__(self, padding, crop=False, max_batch_size=MAX_BATCH_SIZE):
-        super().__init__()
+    Padding is computed from kernel size and dilation. ``padding`` controls
+    only time: "same" (or "centered"), "causal", or "anticausal". Input chunks must
+    have fixed height and time lengths divisible by the temporal stride.
+    """
 
-        self.padding = padding
-        self.crop = crop
-        self.initialized = 0
-        self.max_batch_size = max_batch_size
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding="same", *, dilation=1, groups=1, bias=True,
+                 device=None, dtype=None, cumulative_delay=0,
+                 max_batch_size=MAX_BATCH_SIZE):
+        super().__init__(in_channels, out_channels, kernel_size, stride=stride,
+                         padding=0, dilation=dilation, groups=groups, bias=bias,
+                         device=device, dtype=dtype)
 
-    @torch.jit.unused
-    @torch.no_grad()
-    def init_cache(self, x: torch.Tensor) -> None:
-        b, c, h, _ = x.shape
-        self.register_buffer(
-            'pad',
-            torch.zeros((self.max_batch_size, c, h, self.padding)).to(x))
-        self.initialized += 1
+        left, right, top, bottom = _resolve_2d_padding(self, padding)
+        self._pad = [0, 0, top, bottom]
+        s = self.stride[1]
+        cd = cumulative_delay
+        stride_delay = (s - ((right + cd) % s)) % s
+        self.cumulative_delay = (right + stride_delay + cd) // s
 
-    def forward(self, x):
-        if not self.initialized:
-            self.init_cache(x)
-
-        if self.padding:
-            x = torch.cat([self.pad[:x.shape[0]], x], -1)
-
-            self.pad[:x.shape[0]].copy_(x[..., -self.padding:])
-
-            if self.crop:
-                x = x[..., :-self.padding]
-        return x
-
-
-class CausalConv2d(nn.Conv2d):
-
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 kernel_size,
-                 stride=1,
-                 dilation=1,
-                 bias=True,
-                 padding_time=None,
-                 padding_vert=None,
-                 padding=None,
-                 **kwargs):
-
-        if isinstance(kernel_size, int):
-            kernel_size = (kernel_size, kernel_size)
-        if isinstance(stride, int):
-            stride = (stride, stride)
-        if isinstance(dilation, int):
-            dilation = (dilation, dilation)
-
-        # "padding" is a shorthand setting both the time and vertical axis
-        if padding is not None:
-            padding_time = padding if padding_time is None else padding_time
-            padding_vert = padding if padding_vert is None else padding_vert
-
-        padding_left, padding_right = resolve_padding(padding_time,
-                                                      kernel_size[1],
-                                                      dilation[1])
-        padding_vert = resolve_padding(padding_vert, kernel_size[0],
-                                       dilation[0])
-
-        self.padding_left = padding_left
-        self.padding_right = padding_right
-        self.padding_vert = padding_vert
-
-        super().__init__(in_channels,
-                         out_channels,
-                         kernel_size,
-                         stride=stride,
-                         padding=0,
-                         dilation=dilation,
-                         bias=bias)
+        self.cache = CachedPadding(left + right, max_batch_size=max_batch_size)
+        self.downsampling_delay = CachedPadding(
+            stride_delay, crop=True, max_batch_size=max_batch_size)
 
     def forward(self, x):
-        pad = (self.padding_left, self.padding_right, self.padding_vert[0],
-               self.padding_vert[1])  # (left, right, top, bottom)
-        x = F.pad(x, pad)
-        x = F.conv2d(x,
-                     self.weight,
-                     self.bias,
-                     stride=self.stride,
-                     padding=0,
-                     dilation=self.dilation,
-                     groups=self.groups)
-        return x
-
-
-class CachedConv2d(nn.Module):
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        args = list(args)
-        max_batch_size = kwargs.pop("max_batch_size", MAX_BATCH_SIZE)
-        normalization_mode = kwargs.pop("normalization", None)
-        cumulative_delay = kwargs.pop("cumulative_delay", 0)
-
-        padding = kwargs.pop("padding", None)
-        padding_time = kwargs.pop("padding_time", None)
-        padding_vert = kwargs.pop("padding_vert", None)
-        if padding is not None:
-            padding_time = padding if padding_time is None else padding_time
-            padding_vert = padding if padding_vert is None else padding_vert
-
-        kernel_size = peek_arg(args, kwargs, "kernel_size",
-                               names=CAUSAL_CONV2D_ARGS)
-        dilation = peek_arg(args, kwargs, "dilation", 1,
-                            names=CAUSAL_CONV2D_ARGS)
-        padding_time = resolve_padding(padding_time,
-                                       axis_value(kernel_size, -1),
-                                       axis_value(dilation, -1))
-
-        kwargs["padding_vert"] = padding_vert
-
-        if is_cached():
-            kwargs["padding_time"] = 0
-
-            causal_conv = CausalConv2d(*args, **kwargs)
-            self.causal_conv = normalization(causal_conv) if normalization_mode else causal_conv
-
-            r_pad = padding_time[1]
-            padding = padding_time[0] + padding_time[1]
-
-            s = self.causal_conv.stride[1]
-            cd = cumulative_delay
-
-            stride_delay = (s - ((r_pad + cd) % s)) % s
-
-            self.cumulative_delay = (r_pad + stride_delay + cd) // s
-
-            self.cache = CachedPadding2d(padding, max_batch_size=max_batch_size)
-            self.downsampling_delay = CachedPadding2d(stride_delay, crop=True, max_batch_size=max_batch_size)
-        else:
-            kwargs["padding_time"] = padding_time
-
-            causal_conv = CausalConv2d(*args, **kwargs)
-            self.causal_conv = normalization(causal_conv) if normalization_mode else causal_conv
-            self.cumulative_delay = 0
-            self.cache = nn.Identity()
-            self.downsampling_delay = nn.Identity()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsampling_delay(x)
         x = self.cache(x)
-        x = self.causal_conv(x)
-        return x
+        x = F.pad(x, self._pad)
+        return F.conv2d(x, self.weight, self.bias, self.stride, 0,
+                        self.dilation, self.groups)
 
 
 class CachedConvTranspose2d(nn.ConvTranspose2d):
@@ -246,13 +126,28 @@ class CachedConvTranspose2d(nn.ConvTranspose2d):
         return x
 
 
-class Conv2d(CausalConv2d):
+class Conv2d(nn.Conv2d):
+    """Conv2d with automatic padding, always centered along height.
 
-    def __init__(self, *args, **kwargs):
-        kwargs.pop("cumulative_delay", 0)
-        kwargs.pop("max_batch_size", None)
-        super().__init__(*args, **kwargs)
+    ``padding`` controls temporal padding: "same" (or "centered"), "causal", or
+    "anticausal". Padding amounts follow kernel size and dilation.
+    """
+
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding="same", *, dilation=1, groups=1, bias=True,
+                 device=None, dtype=None, cumulative_delay=0,
+                 max_batch_size=MAX_BATCH_SIZE):
+        super().__init__(in_channels, out_channels, kernel_size, stride=stride,
+                         padding=0, dilation=dilation, groups=groups, bias=bias,
+                         device=device, dtype=dtype)
+        self._pad = _resolve_2d_padding(self, padding)
         self.cumulative_delay = 0
+
+    def forward(self, x):
+        x = F.pad(x, self._pad)
+        return F.conv2d(x, self.weight, self.bias, self.stride, 0,
+                        self.dilation, self.groups)
+
 
 class ConvTranspose2d(nn.ConvTranspose2d):
 
@@ -274,7 +169,7 @@ class AlignBranches2d(nn.Module):
         max_delay = max(delays)
 
         self.paddings = nn.ModuleList([
-            CachedPadding2d(p, crop=True)
+            CachedPadding(p, crop=True)
             for p in map(lambda f: max_delay - f, delays)
         ])
 
@@ -286,56 +181,3 @@ class AlignBranches2d(nn.Module):
             delayed_x = pad(x)
             outs.append(branch(delayed_x))
         return outs
-
-
-class CachedGroupNorm2d(nn.Module):
-
-    def __init__(self,
-                 num_groups,
-                 num_channels,
-                 padding="automatic",
-                 max_batch_size=MAX_BATCH_SIZE,
-                 **kwargs):
-        super().__init__()
-        self.gn = nn.GroupNorm(num_groups, num_channels, **kwargs)
-        self.padding = padding
-        self.initialized = 0
-        self.max_batch_size = max_batch_size
-        self.stream = is_cached()
-
-    @torch.jit.unused
-    @torch.no_grad()
-    def init_cache(self, x: torch.Tensor) -> None:
-        shape = x.shape
-        if len(shape) > 3:
-            b, c, h, t = x.shape
-            if self.padding == "automatic":
-                self.padding = t
-            self.register_buffer(
-                'pad',
-                torch.zeros((self.max_batch_size, c, h, self.padding)).to(x))
-        else:
-            b, c, t = x.shape
-            if self.padding == "automatic":
-                self.padding = t
-            self.register_buffer(
-                'pad',
-                torch.zeros((self.max_batch_size, c, self.padding)).to(x))
-        self.initialized += 1
-
-    def forward(self, x):
-        if self.stream:
-            in_shape = x.shape[-1]
-            if not self.initialized:
-                self.init_cache(x)
-
-            if self.padding:
-                x = torch.cat([self.pad[:x.shape[0]], x], -1)
-                self.pad[:x.shape[0]].copy_(x[..., -self.padding:])
-
-            x = self.gn.forward(x[..., -self.padding:])
-            return x[..., -in_shape:]
-
-        else:
-            return self.gn.forward(x)
-

@@ -41,7 +41,7 @@ def build_model_1d(kernels, strides):
     return cc.CachedSequential(*layers)
 
 
-def build_model_2d(kernels, strides):
+def build_model_2d(kernels, strides, padding):
     layers = []
     cum_delay = 0
     for k, s in zip(kernels, strides):
@@ -49,8 +49,7 @@ def build_model_2d(kernels, strides):
             cc.Conv2d(
                 CHANNELS, CHANNELS, k,
                 stride=(1, s),
-                padding_time="same",
-                padding_vert="same",
+                padding=padding,
                 cumulative_delay=cum_delay,
             ))
         cum_delay = layers[-1].cumulative_delay
@@ -65,7 +64,8 @@ def test_sequential_1d(hparams):
 
 
 @pytest.mark.parametrize("hparams", hparams_list)
-def test_sequential_2d(hparams):
-    model_constructor = lambda: build_model_2d(**hparams)
+@pytest.mark.parametrize("padding", ["same", "causal"])
+def test_sequential_2d(hparams, padding):
+    model_constructor = lambda: build_model_2d(**hparams, padding=padding)
     input_tensor = torch.randn(1, CHANNELS, HEIGHT, 2**14)
     assert cc.test_equal(model_constructor, input_tensor)

@@ -11,20 +11,6 @@ CONV_ARGS = (
     "dilation",
 )
 
-# argument order of CausalConv2d
-CAUSAL_CONV2D_ARGS = (
-    "in_channels",
-    "out_channels",
-    "kernel_size",
-    "stride",
-    "dilation",
-    "bias",
-    "padding_time",
-    "padding_vert",
-    "padding",
-)
-
-
 def get_padding(kernel_size, stride=1, dilation=1, mode="centered"):
     """
     Computes 'same' padding given a kernel size, stride an dilation.
