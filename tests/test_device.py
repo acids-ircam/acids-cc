@@ -38,6 +38,12 @@ def layers():
                    (1, C, 3, 5, 512)),
         "conv_t3d": (lambda: cc.CachedConvTranspose3d(
             C, C, (1, 3, 4), (1, 1, 2), (0, 1, 1)), (1, C, 3, 5, 512)),
+        "windowed_conv2d": (lambda: cc.CachedWindowedConv2d(
+            C, C, 5, stride=(1, 2)), (1, C, 8, 512)),
+        "upsample1d_linear": (lambda: cc.CachedUpsample1d(3, mode="linear"),
+                              (1, C, 512)),
+        "upsample3d_linear": (lambda: cc.CachedUpsample3d(
+            (2, 2, 2), mode="linear"), (1, C, 3, 5, 512)),
     }
 
 

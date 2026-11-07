@@ -28,6 +28,13 @@ from .conv_3d import CachedConv3d, CachedConvTranspose3d, CachedGroupNorm3d
 from .conv_3d import Conv3d as _Conv3d
 from .conv_3d import ConvTranspose3d as _ConvTranspose3d
 from .conv_3d import AlignBranches3d as _AlignBranches3d
+from .variants import (get_window, CachedWindowedConv1d,
+                       CachedWindowedConv2d, CachedWindowedConv3d,
+                       CachedModulatedConv1d, CachedModulatedConv2d,
+                       CachedModulatedConv3d)
+from . import variants as _variants
+from .upsample import CachedUpsample1d, CachedUpsample2d, CachedUpsample3d
+from . import upsample as _upsample
 
 
 def chunk_process(f, x, N):
@@ -128,3 +135,66 @@ def AlignBranches3d(*args, **kwargs):
         return _AlignBranches3d(*args, **kwargs)
     else:
         return Branches(*args, **kwargs)
+
+
+def WindowedConv1d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedWindowedConv1d(*args, **kwargs)
+    else:
+        return _variants.WindowedConv1d(*args, **kwargs)
+
+
+def WindowedConv2d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedWindowedConv2d(*args, **kwargs)
+    else:
+        return _variants.WindowedConv2d(*args, **kwargs)
+
+
+def WindowedConv3d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedWindowedConv3d(*args, **kwargs)
+    else:
+        return _variants.WindowedConv3d(*args, **kwargs)
+
+
+def ModulatedConv1d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedModulatedConv1d(*args, **kwargs)
+    else:
+        return _variants.ModulatedConv1d(*args, **kwargs)
+
+
+def ModulatedConv2d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedModulatedConv2d(*args, **kwargs)
+    else:
+        return _variants.ModulatedConv2d(*args, **kwargs)
+
+
+def ModulatedConv3d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedModulatedConv3d(*args, **kwargs)
+    else:
+        return _variants.ModulatedConv3d(*args, **kwargs)
+
+
+def Upsample1d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedUpsample1d(*args, **kwargs)
+    else:
+        return _upsample.Upsample1d(*args, **kwargs)
+
+
+def Upsample2d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedUpsample2d(*args, **kwargs)
+    else:
+        return _upsample.Upsample2d(*args, **kwargs)
+
+
+def Upsample3d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedUpsample3d(*args, **kwargs)
+    else:
+        return _upsample.Upsample3d(*args, **kwargs)

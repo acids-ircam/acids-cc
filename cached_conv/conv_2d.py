@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -56,12 +58,22 @@ class CachedConv2d(nn.Conv2d):
         self.downsampling_delay = CachedPadding(
             stride_delay, crop=True, max_batch_size=max_batch_size)
 
-    def forward(self, x):
+    def _pad_input(self, x):
         x = self.downsampling_delay(x)
         x = self.cache(x)
-        x = F.pad(x, self._pad)
-        return F.conv2d(x, self.weight, self.bias, self.stride, 0,
-                        self.dilation, self.groups)
+        return F.pad(x, self._pad)
+
+    def get_weight(self):
+        """Kernel used by the convolution (overridden by variants)."""
+        return self.weight
+
+    def _conv(self, x, weight, bias: Optional[torch.Tensor], groups: int):
+        return F.conv2d(x, weight, bias, self.stride, 0, self.dilation,
+                         groups)
+
+    def forward(self, x):
+        return self._conv(self._pad_input(x), self.get_weight(), self.bias,
+                          self.groups)
 
 
 class CachedConvTranspose2d(nn.ConvTranspose2d):
@@ -151,10 +163,20 @@ class Conv2d(nn.Conv2d):
         self._pad = _resolve_2d_padding(self, padding)
         self.cumulative_delay = 0
 
+    def _pad_input(self, x):
+        return F.pad(x, self._pad)
+
+    def get_weight(self):
+        """Kernel used by the convolution (overridden by variants)."""
+        return self.weight
+
+    def _conv(self, x, weight, bias: Optional[torch.Tensor], groups: int):
+        return F.conv2d(x, weight, bias, self.stride, 0, self.dilation,
+                         groups)
+
     def forward(self, x):
-        x = F.pad(x, self._pad)
-        return F.conv2d(x, self.weight, self.bias, self.stride, 0,
-                        self.dilation, self.groups)
+        return self._conv(self._pad_input(x), self.get_weight(), self.bias,
+                          self.groups)
 
 
 class ConvTranspose2d(nn.ConvTranspose2d):

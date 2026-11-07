@@ -4,6 +4,8 @@
 Only the last (time) axis is streamed and cached. Depth and height are
 always padded "same" (centered), exactly as height is in conv_2d.
 """
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -65,12 +67,22 @@ class CachedConv3d(nn.Conv3d):
         self.downsampling_delay = CachedPadding(
             stride_delay, crop=True, max_batch_size=max_batch_size)
 
-    def forward(self, x):
+    def _pad_input(self, x):
         x = self.downsampling_delay(x)
         x = self.cache(x)
-        x = F.pad(x, self._pad)
-        return F.conv3d(x, self.weight, self.bias, self.stride, 0,
-                        self.dilation, self.groups)
+        return F.pad(x, self._pad)
+
+    def get_weight(self):
+        """Kernel used by the convolution (overridden by variants)."""
+        return self.weight
+
+    def _conv(self, x, weight, bias: Optional[torch.Tensor], groups: int):
+        return F.conv3d(x, weight, bias, self.stride, 0, self.dilation,
+                         groups)
+
+    def forward(self, x):
+        return self._conv(self._pad_input(x), self.get_weight(), self.bias,
+                          self.groups)
 
 
 class Conv3d(nn.Conv3d):
@@ -90,10 +102,20 @@ class Conv3d(nn.Conv3d):
         self._pad = _resolve_3d_padding(self, padding)
         self.cumulative_delay = 0
 
+    def _pad_input(self, x):
+        return F.pad(x, self._pad)
+
+    def get_weight(self):
+        """Kernel used by the convolution (overridden by variants)."""
+        return self.weight
+
+    def _conv(self, x, weight, bias: Optional[torch.Tensor], groups: int):
+        return F.conv3d(x, weight, bias, self.stride, 0, self.dilation,
+                         groups)
+
     def forward(self, x):
-        x = F.pad(x, self._pad)
-        return F.conv3d(x, self.weight, self.bias, self.stride, 0,
-                        self.dilation, self.groups)
+        return self._conv(self._pad_input(x), self.get_weight(), self.bias,
+                          self.groups)
 
 
 class CachedConvTranspose3d(nn.ConvTranspose3d):

@@ -1,5 +1,8 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .utils import (get_padding, resolve_padding, axis_value, peek_arg,
                     take_arg)
@@ -107,18 +110,21 @@ class CachedConv1d(nn.Conv1d):
         self.cache = CachedPadding(padding, max_batch_size=max_batch_size)
         self.downsampling_delay = CachedPadding(stride_delay, crop=True, max_batch_size=max_batch_size)
 
-    def forward(self, x):
+    def _pad_input(self, x):
         x = self.downsampling_delay(x)
-        x = self.cache(x)
-        return nn.functional.conv1d(
-            x,
-            self.weight,
-            self.bias,
-            self.stride,
-            self.padding,
-            self.dilation,
-            self.groups,
-        )
+        return self.cache(x)
+
+    def get_weight(self):
+        """Kernel used by the convolution (overridden by variants)."""
+        return self.weight
+
+    def _conv(self, x, weight, bias: Optional[torch.Tensor], groups: int):
+        return F.conv1d(x, weight, bias, self.stride, 0, self.dilation,
+                         groups)
+
+    def forward(self, x):
+        return self._conv(self._pad_input(x), self.get_weight(), self.bias,
+                          self.groups)
 
 
 class CachedConvTranspose1d(nn.ConvTranspose1d):
@@ -200,17 +206,20 @@ class Conv1d(nn.Conv1d):
         super().__init__(*args, **kwargs)
         self.cumulative_delay = 0
 
+    def _pad_input(self, x):
+        return F.pad(x, self._pad)
+
+    def get_weight(self):
+        """Kernel used by the convolution (overridden by variants)."""
+        return self.weight
+
+    def _conv(self, x, weight, bias: Optional[torch.Tensor], groups: int):
+        return F.conv1d(x, weight, bias, self.stride, 0, self.dilation,
+                         groups)
+
     def forward(self, x):
-        x = nn.functional.pad(x, self._pad)
-        return nn.functional.conv1d(
-            x,
-            self.weight,
-            self.bias,
-            self.stride,
-            self.padding,
-            self.dilation,
-            self.groups,
-        )
+        return self._conv(self._pad_input(x), self.get_weight(), self.bias,
+                          self.groups)
 
 
 class CachedGroupNorm(nn.GroupNorm):
