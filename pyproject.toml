@@ -20,6 +20,11 @@ dependencies = ["torch>1.8"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov"]
+docs = ["sphinx>=7", "furo", "myst-parser", "sphinx-copybutton"]
+
+[project.urls]
+Documentation = "https://cached-conv.readthedocs.io"
+Repository = "https://github.com/acids-ircam/acids-cc"
 
 [tool.setuptools.packages.find]
 include = ["cached_conv*"]

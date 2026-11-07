@@ -1,0 +1,7 @@
+# CPU-only torch keeps the Read the Docs build small and fast
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+sphinx>=7
+furo
+myst-parser
+sphinx-copybutton

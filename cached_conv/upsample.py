@@ -1,7 +1,7 @@
 """
 Upsampling compatible with cached (streaming) processing.
 
-Inputs are shaped (batch, channels, *spatial, time). The time factor must be
+Inputs are shaped ``(batch, channels, *spatial, time)``. The time factor must be
 an integer; spatial factors (2D / 3D) are applied as with nn.Upsample.
 
 - "nearest": every time step is repeated. Causal, no cache, no delay.

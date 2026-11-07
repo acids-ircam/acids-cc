@@ -25,10 +25,11 @@ def get_window(window, size):
     """1D window of ``size`` taps.
 
     ``window`` is either
+
     - a name among "hann", "hamming", "blackman", "bartlett", "kaiser". The
       window is computed over ``size + 2`` points and its two end points are
       dropped, so that no tap of the kernel is zeroed (a size 3 kernel gets
-      [.5, 1, .5] with "hann", not [0, 1, 0]).
+      ``[.5, 1, .5]`` with "hann", not ``[0, 1, 0]``),
     - None, "rect" or "boxcar": no windowing,
     - a callable ``f(size) -> Tensor``,
     - a 1D tensor / sequence of length ``size``.
@@ -103,7 +104,8 @@ class ModulatedMixin:
             nn.init.ones_(self.affine.bias)
 
     def modulated_weight(self, style):
-        """(batch * out_channels, in_channels // groups, *kernel_size)"""
+        """Modulated kernel, shaped
+        ``(batch * out_channels, in_channels // groups, *kernel_size)``."""
         weight = self.get_weight()
         b = style.shape[0]
         g = self.groups
