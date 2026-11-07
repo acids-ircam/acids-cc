@@ -6,10 +6,18 @@ from .utils import get_padding
 
 from .conv_1d import CachedPadding, CachedGroupNorm
 
+
+try:
+    from torch.fx import wrap as wrap
+except ImportError:
+    wrap = lambda fn: fn
+
+
 CachedGroupNorm2d = CachedGroupNorm
 
 MAX_BATCH_SIZE = 8
 
+@wrap
 def _resolve_2d_padding(layer, padding):
     mode = "centered" if padding == "same" else padding
     if mode not in ("centered", "causal", "anticausal"):

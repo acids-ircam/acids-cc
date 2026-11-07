@@ -1,7 +1,7 @@
 import torch
 
 USE_CACHED_CONV = False
-
+MAX_BATCH_SIZE = 64 # Warning! added for retro-compatibility
 
 def use_cached_conv(state: bool):
     global USE_CACHED_CONV
@@ -24,6 +24,10 @@ from .conv_2d import CachedConv2d, CachedConvTranspose2d, CachedGroupNorm2d
 from .conv_2d import Conv2d as _Conv2d
 from .conv_2d import ConvTranspose2d as _ConvTranspose2d
 from .conv_2d import AlignBranches2d as _AlignBranches2d
+from .conv_3d import CachedConv3d, CachedConvTranspose3d, CachedGroupNorm3d
+from .conv_3d import Conv3d as _Conv3d
+from .conv_3d import ConvTranspose3d as _ConvTranspose3d
+from .conv_3d import AlignBranches3d as _AlignBranches3d
 
 
 def chunk_process(f, x, N):
@@ -36,9 +40,9 @@ def test_equal(model_constructor, input_tensor, crop=True):
     initial_state = USE_CACHED_CONV
 
     use_cached_conv(False)
-    model = model_constructor()
+    model = model_constructor().to(input_tensor.device)
     use_cached_conv(True)
-    cmodel = model_constructor()
+    cmodel = model_constructor().to(input_tensor.device)
 
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
         p2.data.copy_(p1.data)
@@ -101,5 +105,26 @@ def ConvTranspose2d(*args, **kwargs):
 def AlignBranches2d(*args, **kwargs):
     if USE_CACHED_CONV:
         return _AlignBranches2d(*args, **kwargs)
+    else:
+        return Branches(*args, **kwargs)
+
+
+def Conv3d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedConv3d(*args, **kwargs)
+    else:
+        return _Conv3d(*args, **kwargs)
+
+
+def ConvTranspose3d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedConvTranspose3d(*args, **kwargs)
+    else:
+        return _ConvTranspose3d(*args, **kwargs)
+
+
+def AlignBranches3d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return _AlignBranches3d(*args, **kwargs)
     else:
         return Branches(*args, **kwargs)

@@ -55,14 +55,14 @@ hparams_list_2d = [
 
 
 @pytest.mark.parametrize("hparams", hparams_list_1d)
-def test_conv_t_1d(hparams):
+def test_conv_t_1d(device, hparams):
     model_constructor = lambda: cc.ConvTranspose1d(**hparams)
-    input_tensor = torch.randn(1, hparams["out_channels"], 2**14)
+    input_tensor = torch.randn(1, hparams["out_channels"], 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)
 
 
 @pytest.mark.parametrize("hparams", hparams_list_2d)
-def test_conv_t_2d(hparams):
+def test_conv_t_2d(device, hparams):
     model_constructor = lambda: cc.ConvTranspose2d(**hparams)
-    input_tensor = torch.randn(1, hparams["out_channels"], 8, 2**14)
+    input_tensor = torch.randn(1, hparams["out_channels"], 8, 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)

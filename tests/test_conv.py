@@ -62,15 +62,15 @@ hparams_list_2d = [{
 
 
 @pytest.mark.parametrize("hparams", hparams_list_1d)
-def test_conv_1d(hparams):
+def test_conv_1d(device, hparams):
     model_constructor = lambda: cc.Conv1d(**hparams)
-    input_tensor = torch.randn(1, hparams["in_channels"], 2**14)
+    input_tensor = torch.randn(1, hparams["in_channels"], 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)
 
 
 @pytest.mark.parametrize("hparams", hparams_list_2d)
 @pytest.mark.parametrize("padding", ["same", "causal", "anticausal"])
-def test_conv_2d(hparams, padding):
+def test_conv_2d(device, hparams, padding):
     model_constructor = lambda: cc.Conv2d(**hparams, padding=padding)
-    input_tensor = torch.randn(1, hparams["in_channels"], 8, 2**14)
+    input_tensor = torch.randn(1, hparams["in_channels"], 8, 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)

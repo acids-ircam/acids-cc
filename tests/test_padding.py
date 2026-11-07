@@ -25,34 +25,34 @@ def cached(request):
 
 @pytest.mark.parametrize("params", conv_params)
 @pytest.mark.parametrize("mode", modes)
-def test_implicit_padding_1d(cached, params, mode):
+def test_implicit_padding_1d(device, cached, params, mode):
     """padding="same" builds the same layer as padding=cc.get_padding(...)"""
     k, s, d = params
     explicit_mode = "centered" if mode == "same" else mode
 
     implicit = cc.Conv1d(CHANNELS, CHANNELS, k, stride=s, dilation=d,
-                         padding=mode)
+                         padding=mode).to(device)
     explicit = cc.Conv1d(CHANNELS, CHANNELS, k, stride=s, dilation=d,
-                         padding=cc.get_padding(k, s, d, explicit_mode))
+                         padding=cc.get_padding(k, s, d, explicit_mode)).to(device)
 
     for p1, p2 in zip(implicit.parameters(), explicit.parameters()):
         p2.data.copy_(p1.data)
 
-    x = torch.randn(1, CHANNELS, 2**12)
+    x = torch.randn(1, CHANNELS, 2**12, device=device)
     assert implicit.cumulative_delay == explicit.cumulative_delay
     assert torch.allclose(implicit(x), explicit(x))
 
 
 @pytest.mark.parametrize("params", conv_params)
 @pytest.mark.parametrize("mode", ["same", "centered", "causal", "anticausal"])
-def test_implicit_padding_2d(cached, params, mode):
+def test_implicit_padding_2d(device, cached, params, mode):
     k, s, d = params
     model = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d),
-                      padding=mode)
-    reference = nn.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d))
+                      padding=mode).to(device)
+    reference = nn.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s), dilation=(1, d)).to(device)
     reference.load_state_dict(model.state_dict())
 
-    x = torch.randn(1, CHANNELS, HEIGHT, 2**12)
+    x = torch.randn(1, CHANNELS, HEIGHT, 2**12, device=device)
     left, right = cc.get_padding(k, dilation=d,
                                  mode="centered" if mode == "same" else mode)
     top, bottom = cc.get_padding(k)
@@ -73,17 +73,17 @@ def test_implicit_padding_2d(cached, params, mode):
 
 
 @pytest.mark.parametrize("params", conv_params)
-def test_streaming_implicit_padding_1d(params):
+def test_streaming_implicit_padding_1d(device, params):
     k, s, d = params
     model_constructor = lambda: cc.Conv1d(
         CHANNELS, CHANNELS, k, stride=s, dilation=d, padding="same")
-    input_tensor = torch.randn(1, CHANNELS, 2**14)
+    input_tensor = torch.randn(1, CHANNELS, 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)
 
 
 @pytest.mark.parametrize("params", conv_params)
 @pytest.mark.parametrize("mode", ["same", "centered", "causal", "anticausal"])
-def test_streaming_implicit_padding_2d(params, mode):
+def test_streaming_implicit_padding_2d(device, params, mode):
     k, s, d = params
     model_constructor = lambda: cc.Conv2d(CHANNELS,
                                           CHANNELS,
@@ -91,44 +91,44 @@ def test_streaming_implicit_padding_2d(params, mode):
                                           stride=(1, s),
                                           dilation=(1, d),
                                           padding=mode)
-    input_tensor = torch.randn(1, CHANNELS, HEIGHT, 2**14)
+    input_tensor = torch.randn(1, CHANNELS, HEIGHT, 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)
 
 
-def test_default_padding_2d(cached):
-    model = cc.Conv2d(CHANNELS, CHANNELS, 3)
-    x = torch.randn(1, CHANNELS, HEIGHT, 2**10)
+def test_default_padding_2d(device, cached):
+    model = cc.Conv2d(CHANNELS, CHANNELS, 3).to(device)
+    x = torch.randn(1, CHANNELS, HEIGHT, 2**10, device=device)
     assert model(x).shape == x.shape
 
 
-def test_padding_positional(cached):
+def test_padding_positional(device, cached):
     """padding given positionally is resolved as well"""
-    model = cc.Conv1d(CHANNELS, CHANNELS, 5, 1, "same")
-    x = torch.randn(1, CHANNELS, 2**10)
+    model = cc.Conv1d(CHANNELS, CHANNELS, 5, 1, "same").to(device)
+    x = torch.randn(1, CHANNELS, 2**10, device=device)
     assert model(x).shape == x.shape
 
 
 @pytest.mark.parametrize("padding", ["valid", "none", 0, None])
-def test_no_padding(cached, padding):
-    model = cc.Conv1d(CHANNELS, CHANNELS, 5, padding=padding)
-    x = torch.randn(1, CHANNELS, 2**10)
+def test_no_padding(device, cached, padding):
+    model = cc.Conv1d(CHANNELS, CHANNELS, 5, padding=padding).to(device)
+    x = torch.randn(1, CHANNELS, 2**10, device=device)
     assert model(x).shape[-1] == x.shape[-1] - 4
     assert model.cumulative_delay == 0
 
 
-def test_int_padding(cached):
+def test_int_padding(device, cached):
     """an int pads both sides, as in torch"""
-    model = cc.Conv1d(CHANNELS, CHANNELS, 5, padding=2)
-    x = torch.randn(1, CHANNELS, 2**10)
+    model = cc.Conv1d(CHANNELS, CHANNELS, 5, padding=2).to(device)
+    x = torch.randn(1, CHANNELS, 2**10, device=device)
     assert model(x).shape == x.shape
 
 
-def test_unknown_padding_mode(cached):
+def test_unknown_padding_mode(device, cached):
     with pytest.raises(Exception):
         cc.Conv1d(CHANNELS, CHANNELS, 5, padding="acausal")
 
 
-def test_streaming_sequential_implicit():
+def test_streaming_sequential_implicit(device):
     """a stack built without any explicit padding streams correctly"""
 
     def build_model():
@@ -145,23 +145,23 @@ def test_streaming_sequential_implicit():
             cum_delay = layers[-1].cumulative_delay
         return cc.CachedSequential(*layers)
 
-    assert cc.test_equal(build_model, torch.randn(1, CHANNELS, 2**14))
+    assert cc.test_equal(build_model, torch.randn(1, CHANNELS, 2**14, device=device))
 
 
-def test_unknown_padding_mode_2d(cached):
+def test_unknown_padding_mode_2d(device, cached):
     with pytest.raises(ValueError):
         cc.Conv2d(CHANNELS, CHANNELS, 3, padding="acausal")
 
 
 @pytest.mark.parametrize("params", conv_params)
-def test_causality_2d(cached, params):
+def test_causality_2d(device, cached, params):
     k, s, d = params
     model = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s),
-                      dilation=(1, d), padding="causal")
+                      dilation=(1, d), padding="causal").to(device)
     other = cc.Conv2d(CHANNELS, CHANNELS, k, stride=(1, s),
-                      dilation=(1, d), padding="causal")
+                      dilation=(1, d), padding="causal").to(device)
     other.load_state_dict(model.state_dict())
-    x = torch.randn(1, CHANNELS, HEIGHT, 2**10)
+    x = torch.randn(1, CHANNELS, HEIGHT, 2**10, device=device)
     changed = x.clone()
     cutoff = 513
     changed[..., cutoff:] += 10
@@ -179,9 +179,9 @@ def test_causality_2d(cached, params):
 
 
 @pytest.mark.parametrize("padding", ["same", "centered", "causal", "anticausal"])
-def test_padding_positional_2d(cached, padding):
-    model = cc.Conv2d(CHANNELS, CHANNELS, 5, 1, padding)
-    reference = cc.Conv2d(CHANNELS, CHANNELS, 5, padding=padding)
+def test_padding_positional_2d(device, cached, padding):
+    model = cc.Conv2d(CHANNELS, CHANNELS, 5, 1, padding).to(device)
+    reference = cc.Conv2d(CHANNELS, CHANNELS, 5, padding=padding).to(device)
     reference.load_state_dict(model.state_dict())
-    x = torch.randn(1, CHANNELS, HEIGHT, 2**10)
+    x = torch.randn(1, CHANNELS, HEIGHT, 2**10, device=device)
     assert torch.allclose(model(x), reference(x))

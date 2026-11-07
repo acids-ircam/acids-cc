@@ -44,21 +44,21 @@ model_list_2d = [
 
 
 @pytest.mark.parametrize("model_spec", model_list_1d)
-def test_script_1d(model_spec):
+def test_script_1d(device, model_spec):
     cls, hp, shape = model_spec
-    model = cls(**hp)
-    x = torch.randn(*shape)
+    model = cls(**hp).to(device)
+    x = torch.randn(*shape, device=device)
     model(x)
     torch.jit.script(model)
 
 
 @pytest.mark.parametrize("model_spec", model_list_2d)
-def test_script_2d(model_spec):
+def test_script_2d(device, model_spec):
     cls, hp, shape = model_spec
     cc.use_cached_conv(True)
     try:
-        model = cls(**hp)
-        x = torch.randn(*shape)
+        model = cls(**hp).to(device)
+        x = torch.randn(*shape, device=device)
         model(x)
         torch.jit.script(model)
     finally:

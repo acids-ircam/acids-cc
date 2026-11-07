@@ -22,16 +22,16 @@ hparams_list = [{
 @pytest.mark.parametrize("hparams", hparams_list)
 @pytest.mark.parametrize("shape", [(2, 16, 256), (2, 16, 8, 256)])
 @pytest.mark.parametrize("history_size", ["automatic", 0, 32, 128])
-def test_group_norm(hparams, shape, history_size):
+def test_group_norm(device, hparams, shape, history_size):
     model = cc.CachedGroupNorm(**hparams, history_size=history_size,
-                               max_batch_size=shape[0])
-    reference = nn.GroupNorm(**hparams)
+                               max_batch_size=shape[0]).to(device)
+    reference = nn.GroupNorm(**hparams).to(device)
     if model.affine:
         model.weight.copy_(torch.randn_like(model.weight))
         model.bias.copy_(torch.randn_like(model.bias))
     reference.load_state_dict(model.state_dict())
 
-    x = torch.randn(*shape)
+    x = torch.randn(*shape, device=device)
     chunks = x.chunk(4, dim=-1)
     size = chunks[0].shape[-1] if history_size == "automatic" else history_size
     history = x.new_zeros(*shape[:-1], size)

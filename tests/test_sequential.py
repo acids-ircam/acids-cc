@@ -57,15 +57,15 @@ def build_model_2d(kernels, strides, padding):
 
 
 @pytest.mark.parametrize("hparams", hparams_list)
-def test_sequential_1d(hparams):
+def test_sequential_1d(device, hparams):
     model_constructor = lambda: build_model_1d(**hparams)
-    input_tensor = torch.randn(1, CHANNELS, 2**14)
+    input_tensor = torch.randn(1, CHANNELS, 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)
 
 
 @pytest.mark.parametrize("hparams", hparams_list)
 @pytest.mark.parametrize("padding", ["same", "causal"])
-def test_sequential_2d(hparams, padding):
+def test_sequential_2d(device, hparams, padding):
     model_constructor = lambda: build_model_2d(**hparams, padding=padding)
-    input_tensor = torch.randn(1, CHANNELS, HEIGHT, 2**14)
+    input_tensor = torch.randn(1, CHANNELS, HEIGHT, 2**14, device=device)
     assert cc.test_equal(model_constructor, input_tensor)

@@ -6,6 +6,11 @@ from .utils import (get_padding, resolve_padding, axis_value, peek_arg,
 
 MAX_BATCH_SIZE = 64
 
+try:
+    from torch.fx import wrap as wrap
+except ImportError:  # torch < 1.8
+    wrap = lambda fn_or_name: fn_or_name
+
 
 class CachedSequential(nn.Sequential):
     """
@@ -33,7 +38,6 @@ class Sequential(CachedSequential):
     pass
 
 
-@torch.fx.wrap
 class CachedPadding(nn.Module):
     """
     Cached Padding implementation, replace zero padding with the end of
@@ -66,6 +70,11 @@ class CachedPadding(nn.Module):
                 x = x[..., :-self.padding]
 
         return x
+
+
+# Registered by name: torch < 1.13 only accepts functions or strings here.
+# Must stay at module top level (torch.fx.wrap inspects the caller's frame).
+wrap("CachedPadding")
 
 
 class CachedConv1d(nn.Conv1d):
