@@ -1,6 +1,6 @@
 # cached_conv
 
-[![Documentation Status](https://readthedocs.org/projects/cached-conv/badge/?version=latest)](https://cached-conv.readthedocs.io/en/latest/)
+[![Documentation Status](https://readthedocs.org/projects/cached-conv/badge/?version=latest)](https://acids-cc.readthedocs.io/en/latest/)
 [![docs](https://github.com/acids-ircam/acids-cc/actions/workflows/docs.yml/badge.svg)](https://github.com/acids-ircam/acids-cc/actions/workflows/docs.yml)
 
 **Cached convolutions for real-time streaming inference with PyTorch.**
