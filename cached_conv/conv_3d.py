@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import get_padding
+from .utils import get_padding, normalization as _normalization
 from .conv_1d import CachedPadding, CachedGroupNorm
 from .conv_2d import AlignBranches2d
 
@@ -45,13 +45,14 @@ class CachedConv3d(nn.Conv3d):
     Padding is computed from kernel size and dilation. ``padding`` controls
     only time: "same" (or "centered"), "causal", or "anticausal". Input chunks
     must have fixed depth and height, and time lengths divisible by the
-    temporal stride.
+    temporal stride. ``normalization`` ("weight_norm" / True, or "identity" /
+    None / False) optionally applies a weight normalization to the layer.
     """
 
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding="same", *, dilation=1, groups=1, bias=True,
                  device=None, dtype=None, cumulative_delay=0,
-                 max_batch_size=MAX_BATCH_SIZE):
+                 max_batch_size=MAX_BATCH_SIZE, normalization=None):
         super().__init__(in_channels, out_channels, kernel_size, stride=stride,
                          padding=0, dilation=dilation, groups=groups, bias=bias,
                          device=device, dtype=dtype)
@@ -66,6 +67,8 @@ class CachedConv3d(nn.Conv3d):
         self.cache = CachedPadding(left + right, max_batch_size=max_batch_size)
         self.downsampling_delay = CachedPadding(
             stride_delay, crop=True, max_batch_size=max_batch_size)
+
+        _normalization(self, normalization)
 
     def _pad_input(self, x):
         x = self.downsampling_delay(x)
@@ -90,17 +93,20 @@ class Conv3d(nn.Conv3d):
 
     ``padding`` controls temporal padding: "same" (or "centered"), "causal",
     or "anticausal". Padding amounts follow kernel size and dilation.
+    ``normalization`` optionally applies a weight normalization (see
+    :func:`cached_conv.normalization`).
     """
 
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding="same", *, dilation=1, groups=1, bias=True,
                  device=None, dtype=None, cumulative_delay=0,
-                 max_batch_size=MAX_BATCH_SIZE):
+                 max_batch_size=MAX_BATCH_SIZE, normalization=None):
         super().__init__(in_channels, out_channels, kernel_size, stride=stride,
                          padding=0, dilation=dilation, groups=groups, bias=bias,
                          device=device, dtype=dtype)
         self._pad = _resolve_3d_padding(self, padding)
         self.cumulative_delay = 0
+        _normalization(self, normalization)
 
     def _pad_input(self, x):
         return F.pad(x, self._pad)

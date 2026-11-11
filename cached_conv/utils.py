@@ -131,3 +131,35 @@ class Branches(nn.Module):
         for branch in self.branches:
             outs.append(branch(x))
         return outs
+
+
+def _remove_weight_norm_for_scripting(self):
+    """``__prepare_scriptable__`` hook: weight norm hooks are not scriptable,
+    so the normalization is folded back into ``weight`` before scripting."""
+    for hook in list(self._forward_pre_hooks.values()):
+        if (hook.__class__.__name__ == "WeightNorm"
+                and hook.__module__ == "torch.nn.utils.weight_norm"):
+            nn.utils.remove_weight_norm(self, name=hook.name)
+    return self
+
+
+def normalization(module: nn.Module, mode="weight_norm"):
+    """
+    Applies a weight normalization to ``module``.
+
+    ``mode`` is either
+
+    - ``"weight_norm"`` (or ``True``): :func:`torch.nn.utils.weight_norm`. The
+      module gets a ``__prepare_scriptable__`` hook removing the normalization,
+      so that it can be compiled with ``torch.jit.script`` ;
+    - ``"identity"`` (or ``None`` / ``False``): the module is returned as is.
+    """
+    if mode is True:
+        mode = "weight_norm"
+    if mode is None or mode is False or mode == "identity":
+        return module
+    if mode == "weight_norm":
+        layer = nn.utils.weight_norm(module)
+        layer.__prepare_scriptable__ = _remove_weight_norm_for_scripting.__get__(layer)
+        return layer
+    raise ValueError(f"Normalization mode {mode} not supported")

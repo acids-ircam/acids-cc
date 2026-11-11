@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "acids-cc"
-version = "3.0"
+version = "3.1"
 description = "Cached convolution layers for real-time streaming inference with PyTorch (upgrade of Caillon's cached_conv 2021 package)"
 readme = "README.md"
 requires-python = ">=3.9"

@@ -178,9 +178,11 @@ def test_parallel_transpose_2d(device):
         p2.data.copy_(p1.data)
 
     x = torch.randn(1, 1, 8, 2**14, device=device)
+    # the non-cached transposed convs crop on the right too (crop_right=True)
+    cd = cmodel.cumulative_delay - model.cumulative_delay
     y = sum(model(x))
-    if cmodel.cumulative_delay:
-        y = y[..., :-cmodel.cumulative_delay]
-    cy = cc.chunk_process(lambda x: sum(cmodel(x)), x, 4)[..., cmodel.cumulative_delay:]
+    if cd:
+        y = y[..., :-cd]
+    cy = cc.chunk_process(lambda x: sum(cmodel(x)), x, 4)[..., cd:]
 
     assert torch.allclose(y, cy, 1e-3, 1e-3)

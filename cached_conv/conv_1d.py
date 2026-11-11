@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .utils import normalization as _normalization
 from .utils import (get_padding, resolve_padding, axis_value, peek_arg,
                     take_arg)
 
@@ -89,6 +90,7 @@ class CachedConv1d(nn.Conv1d):
         args = list(args)
         cumulative_delay = kwargs.pop("cumulative_delay", 0)
         max_batch_size = kwargs.pop("max_batch_size", MAX_BATCH_SIZE)
+        normalization = kwargs.pop("normalization", None)
 
         padding = take_arg(args, kwargs, "padding", 0)
         kernel_size = axis_value(peek_arg(args, kwargs, "kernel_size"), 0)
@@ -109,6 +111,8 @@ class CachedConv1d(nn.Conv1d):
 
         self.cache = CachedPadding(padding, max_batch_size=max_batch_size)
         self.downsampling_delay = CachedPadding(stride_delay, crop=True, max_batch_size=max_batch_size)
+
+        _normalization(self, normalization)
 
     def _pad_input(self, x):
         x = self.downsampling_delay(x)
@@ -197,6 +201,7 @@ class Conv1d(nn.Conv1d):
         args = list(args)
         kwargs.pop("cumulative_delay", 0)
         kwargs.pop("max_batch_size", None)
+        normalization = kwargs.pop("normalization", None)
 
         padding = take_arg(args, kwargs, "padding", 0)
         kernel_size = axis_value(peek_arg(args, kwargs, "kernel_size"), 0)
@@ -205,6 +210,7 @@ class Conv1d(nn.Conv1d):
 
         super().__init__(*args, **kwargs)
         self.cumulative_delay = 0
+        _normalization(self, normalization)
 
     def _pad_input(self, x):
         return F.pad(x, self._pad)

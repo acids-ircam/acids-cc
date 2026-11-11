@@ -360,7 +360,12 @@ def test_resynthesis_2d(device, name):
     write_wav(f"{device.type}/2d_input_resynth", istft(mag, phase))
 
     cc.use_cached_conv(False)
-    offline = from_channels(build_2d(**cfg).to(device)(to_channels(mag)))
+    offline_model = build_2d(**cfg).to(device)
+    # ConvTranspose2d crops on the right (crop_right=True): the offline
+    # model is itself delayed, like the streaming one
+    offline_delay = offline_model.cumulative_delay
+    offline = compensate(
+        from_channels(offline_model(to_channels(mag))), offline_delay)
 
     cc.use_cached_conv(True)
     model = build_2d(**cfg).to(device)

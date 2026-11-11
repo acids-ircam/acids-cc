@@ -13,7 +13,16 @@ def is_cached():
     return USE_CACHED_CONV
 
 
-from .utils import Branches
+def __getattr__(name):
+    # backward compatibility with cached_conv < 3: ``cc.USE_BUFFER_CONV`` was
+    # the name of the global flag. Resolved dynamically so that it always
+    # mirrors ``USE_CACHED_CONV`` (set it with ``use_cached_conv``).
+    if name == "USE_BUFFER_CONV":
+        return USE_CACHED_CONV
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+from .utils import Branches, normalization
 from .conv_1d import (get_padding, CachedSequential, Sequential,
                       CachedPadding, CachedConv1d, CachedConvTranspose1d,
                       CachedGroupNorm, CachedGroupNorm1d)
@@ -54,7 +63,9 @@ def test_equal(model_constructor, input_tensor, crop=True):
     for p1, p2 in zip(model.parameters(), cmodel.parameters()):
         p2.data.copy_(p1.data)
 
-    cd = cmodel.cumulative_delay
+    # delay of the cached model w.r.t. the non-cached one (which may itself
+    # be delayed, e.g. ConvTranspose2d with crop_right=True)
+    cd = cmodel.cumulative_delay - model.cumulative_delay
     if cd > 0:
         y = model(input_tensor)[..., :-cd]
     else:
