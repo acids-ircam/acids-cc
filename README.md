@@ -1,7 +1,5 @@
 # cached_conv
-
-[![Documentation Status](https://readthedocs.org/projects/cached-conv/badge/?version=latest)](https://acids-cc.readthedocs.io/en/latest/)
-[![docs](https://github.com/acids-ircam/acids-cc/actions/workflows/docs.yml/badge.svg)](https://github.com/acids-ircam/acids-cc/actions/workflows/docs.yml)
+[![docs](https://github.com/acids-ircam/acids-cc/actions/workflows/docs.yml/badge.svg)](https://acids-cc.readthedocs.io/en/latest/)
 
 **Cached convolutions for real-time streaming inference with PyTorch.**
 
@@ -31,6 +29,9 @@ The same model definition can be built in two modes:
   the next.
 - Streamable upsampling (nearest and linear), group normalization and
   alignment of parallel branches.
+- Streamable sampling rate conversion between any two integer rates
+  (e.g. 44100 → 48000), with an anti-aliasing polyphase filter and no
+  dependency beyond PyTorch.
 - TorchScript export, on CPU, CUDA and MPS.
 
 ## Installation
@@ -94,6 +95,7 @@ factories: they return a regular or a cached layer, depending on
 | Windowed convolution | `WindowedConv1d` | `WindowedConv2d` | `WindowedConv3d` |
 | Modulated convolution | `ModulatedConv1d` | `ModulatedConv2d` | `ModulatedConv3d` |
 | Upsampling | `Upsample1d` | `Upsample2d` | `Upsample3d` |
+| Resampling | `Resample1d` | | |
 | Branch alignment | `AlignBranches1d` | `AlignBranches2d` | `AlignBranches3d` |
 | Group normalization | `CachedGroupNorm1d` | `CachedGroupNorm2d` | `CachedGroupNorm3d` |
 
@@ -119,6 +121,11 @@ y = mod(torch.randn(2, 16, 512), torch.randn(2, 64))
 # upsampling by an integer factor along time
 upsample = cc.Upsample1d(2, mode="linear",
                          cumulative_delay=down.cumulative_delay)
+
+# resampling between sampling rates: chunk lengths must be multiples of
+# `resample.down` (here 160) in cached mode; the cached output is delayed by
+# `resample.time_delay` output samples
+resample = cc.Resample1d(48000, 44100)
 
 # residual connection: delays the identity branch to match the convolution
 conv = cc.Conv1d(16, 16, 3, padding="same")
