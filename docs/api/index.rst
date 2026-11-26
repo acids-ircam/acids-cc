@@ -14,4 +14,5 @@ the cached class depending on :func:`cached_conv.use_cached_conv`.
    conv_3d
    variants
    upsample
+   resample
    utils

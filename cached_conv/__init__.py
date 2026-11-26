@@ -44,6 +44,8 @@ from .variants import (get_window, CachedWindowedConv1d,
 from . import variants as _variants
 from .upsample import CachedUpsample1d, CachedUpsample2d, CachedUpsample3d
 from . import upsample as _upsample
+from .resample import CachedResample1d, resample_kernel, resample_ratio
+from . import resample as _resample
 
 
 def chunk_process(f, x, N):
@@ -209,3 +211,15 @@ def Upsample3d(*args, **kwargs):
         return CachedUpsample3d(*args, **kwargs)
     else:
         return _upsample.Upsample3d(*args, **kwargs)
+
+
+def Resample1d(*args, **kwargs):
+    if USE_CACHED_CONV:
+        return CachedResample1d(*args, **kwargs)
+    else:
+        return _resample.Resample1d(*args, **kwargs)
+
+
+# shorter alias (resampling is always along time)
+def Resample(*args, **kwargs):
+    return Resample1d(*args, **kwargs)

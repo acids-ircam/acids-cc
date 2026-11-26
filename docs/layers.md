@@ -11,6 +11,7 @@ Every layer below is available as a factory at the package level
 | Windowed convolution | `WindowedConv1d` | `WindowedConv2d` | `WindowedConv3d` |
 | Modulated convolution | `ModulatedConv1d` | `ModulatedConv2d` | `ModulatedConv3d` |
 | Upsampling | `Upsample1d` | `Upsample2d` | `Upsample3d` |
+| Resampling | `Resample1d` (alias `Resample`) | | |
 | Branch alignment | `AlignBranches1d` | `AlignBranches2d` | `AlignBranches3d` |
 
 All of them accept the extra keyword arguments `cumulative_delay` and
@@ -133,3 +134,27 @@ up = cc.Upsample1d(2, mode="linear", cumulative_delay=down.cumulative_delay)
 Along time, linear interpolation is computed with exact per-phase weights.
 The eager and cached versions share this code, which avoids a float32
 precision drift of `F.interpolate` on long signals.
+
+## Resampling
+
+`Resample1d(orig_sr, target_sr)` converts a `(batch, channels, time)` signal
+between two integer sampling rates. With `L / M` the reduced ratio
+`target_sr / orig_sr`, it is a polyphase Kaiser-windowed sinc filter with `L`
+phases and a stride of `M` input samples (as
+{func}`torchaudio.functional.resample`, without the dependency). Rational
+ratios such as 44100 → 48000 are supported.
+
+- Eager: zero-delay filtering. Any input length; the output has
+  `ceil(T * L / M)` samples.
+- Cached: the same filter made causal. **Chunk lengths must be multiples of
+  `M`**, each chunk giving `T * L / M` samples. The output is delayed by
+  `time_delay` output samples (added to `cumulative_delay`).
+
+Filter options: `lowpass_filter_width` (zero crossings on each side, default
+32), `rolloff` (cutoff relative to the lowest Nyquist, default 0.9) and
+`attenuation` (stopband, dB, default 100) or directly the Kaiser `beta`.
+
+```python
+down = cc.Resample1d(48000, 24000)
+up = cc.Resample1d(24000, 48000, cumulative_delay=down.cumulative_delay)
+```
